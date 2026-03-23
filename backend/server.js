@@ -10,12 +10,34 @@ app.use(express.json());
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: (req, file, cb) => {
-        if (!file.mimetype.startsWith("image/")) {
-            return cb(new Error("Only images allowed"), false);
+    limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+// ✅ ROOT ROUTE
+app.get("/", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Backend running ✅"
+    });
+});
+
+// ✅ ANALYZE ROUTE
+app.post("/analyze", upload.single("image"), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No image uploaded" });
         }
-        cb(null, true);
+
+        const result = await analyzeImage(
+            req.file.buffer,
+            req.file.mimetype,
+            "Describe this image"
+        );
+
+        res.json({ result });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to analyze image" });
     }
 });
 
