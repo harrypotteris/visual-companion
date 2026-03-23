@@ -1,45 +1,100 @@
 const App = {
 
-video: null,
+  video: null,
 
-async startCamera(){
+  /* ===============================
+     START CAMERA
+  =============================== */
+  async startCamera(){
 
-    this.video = document.getElementById("video");
+    try {
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video:true
-    });
+      this.video = document.getElementById("video");
 
-    this.video.srcObject = stream;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true
+      });
 
-},
+      this.video.srcObject = stream;
 
-async analyzeNow(){
+      console.log("Camera started");
 
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    } catch(err){
 
-    canvas.width = App.video.videoWidth;
-    canvas.height = App.video.videoHeight;
+      console.error("Camera error:", err);
 
-    ctx.drawImage(App.video,0,0);
+    }
 
-    canvas.toBlob(async blob => {
+  },
+
+  /* ===============================
+     ANALYZE CURRENT FRAME
+  =============================== */
+  async analyzeNow(){
+
+    try {
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = App.video.videoWidth;
+      canvas.height = App.video.videoHeight;
+
+      ctx.drawImage(App.video, 0, 0);
+
+      canvas.toBlob(async blob => {
 
         const form = new FormData();
         form.append("image", blob);
 
-        const res = await fetch("http://localhost:5000/analyze",{
-            method:"POST",
-            body:form
-        });
+        const res = await fetch(
+          "https://visual-companion-backend.onrender.com/describe",
+          {
+            method: "POST",
+            body: form
+          }
+        );
 
         const data = await res.json();
 
-        Speech.speak(data.description);
+        console.log(data);
 
+        if(data.description){
+          Speech.speak(data.description);
+        }
+
+      });
+
+    } catch(err){
+
+      console.error("Analyze error:", err);
+
+    }
+
+  },
+
+  /* ===============================
+     TAB SWITCHING
+  =============================== */
+  switchTab(tabName){
+
+    document.querySelectorAll(".tab").forEach(tab=>{
+      tab.classList.remove("active");
     });
 
-}
+    document.querySelectorAll(".tab-pane").forEach(pane=>{
+      pane.classList.remove("active");
+    });
 
-}
+    const tab = document.querySelector(`[data-tab="${tabName}"]`);
+    const pane = document.getElementById(`pane-${tabName}`);
+
+    if(tab) tab.classList.add("active");
+    if(pane) pane.classList.add("active");
+
+  }
+
+};
+
+/* Make global */
+window.App = App;
