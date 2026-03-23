@@ -5,7 +5,7 @@
 window.Config = {
 
   /* Backend API */
-  API_BASE: "http://localhost:3000",
+  API_BASE: "https://visual-companion-backend.onrender.com",
 
   ENDPOINTS: {
     describe: "/describe",
