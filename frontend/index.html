@@ -25,7 +25,6 @@
 
   <!-- CAMERA -->
   <section class="camera-panel">
-
     <div class="camera-box">
       <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas" style="display:none"></canvas>
@@ -65,19 +64,16 @@
       <button class="btn btn-blue"    id="btnAnalyze" onclick="App.analyzeNow()"   disabled>⚡ Analyze</button>
       <button class="btn btn-red"     id="btnStop"    onclick="App.stopAll()"      disabled>■ Stop</button>
     </div>
-
   </section>
 
   <!-- RIGHT PANEL -->
   <section class="panel">
-
     <div class="tabs">
       <button class="tab active" data-tab="live"     onclick="App.switchTab('live')">LIVE FEED</button>
       <button class="tab"        data-tab="people"   onclick="App.switchTab('people')">SAVED PEOPLE</button>
       <button class="tab"        data-tab="commands" onclick="App.switchTab('commands')">COMMANDS</button>
     </div>
 
-    <!-- Live feed -->
     <div class="tab-pane active" id="pane-live">
       <div class="empty-state" id="emptyLive">
         <div class="es-icon">🔍</div>
@@ -86,7 +82,6 @@
       </div>
     </div>
 
-    <!-- Saved people -->
     <div class="tab-pane" id="pane-people">
       <div class="empty-state" id="emptyPeople">
         <div class="es-icon">👤</div>
@@ -95,16 +90,14 @@
       </div>
     </div>
 
-    <!-- Commands -->
     <div class="tab-pane" id="pane-commands">
       <div class="commands-grid" id="commandsGrid"></div>
     </div>
-
   </section>
 
 </div>
 
-<!-- SAVE PERSON -->
+<!-- SAVE PERSON OVERLAY -->
 <div class="save-overlay" id="saveOverlay" style="display:none">
   <div class="save-box">
     <h3>Saving Person 📸</h3>
@@ -119,9 +112,12 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- SCRIPTS -->
+<!-- ✅ face-api.js MUST load first -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<!-- Then your files in order -->
 <script src="js/config.js"></script>
-<script src="js/ai.js"></script>   
+<script src="js/ai.js"></script>
 <script src="js/people.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/app.js"></script>
