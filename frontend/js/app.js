@@ -13,6 +13,8 @@ const App = {
   =============================== */
   async init() {
     this.renderCommands();
+    // Load face-api models for client-side detection (used by AI.analyzeFrame)
+    try { await AI.loadModels(); } catch(e) { console.warn("Face models unavailable:", e.message); }
     await People.load();
     Speech.listen();
 
@@ -58,7 +60,7 @@ const App = {
     }, Config.MONITOR.interval);
 
     document.getElementById("statusPill").textContent = "MONITORING";
-    document.getElementById("scanLine").style.display = "block";
+    document.getElementById("scanLine").classList.add("active");
 
     Speech.speak("Monitoring started.");
   },
@@ -76,7 +78,7 @@ const App = {
     this.isAnalyzing = true;
 
     try {
-      document.getElementById("thinkingIndicator").style.width = "60%";
+      document.getElementById("thinkingIndicator").classList.add("show");
 
       const blob = await this._captureBlob();
 
@@ -86,7 +88,7 @@ const App = {
       const res = await fetch(Config.url("describe"), { method: "POST", body: form });
       const data = await res.json();
 
-      document.getElementById("thinkingIndicator").style.width = "0%";
+      document.getElementById("thinkingIndicator").classList.remove("show");
 
       if (data?.description) {
         if (Config.AI.speakResults) Speech.speak(data.description);
@@ -95,7 +97,7 @@ const App = {
 
     } catch (err) {
       console.error("Analyze error:", err);
-      document.getElementById("thinkingIndicator").style.width = "0%";
+      document.getElementById("thinkingIndicator").classList.remove("show");
     }
 
     this.isAnalyzing = false;
@@ -119,8 +121,8 @@ const App = {
       const form = new FormData();
       form.append("image", blob);
 
-      // Ask backend — expects { name } or { name: null } or { unknown: true }
-      const res = await fetch(Config.url("describe"), { method: "POST", body: form });
+      // Ask the dedicated /recognize endpoint
+      const res = await fetch(Config.url("recognize"), { method: "POST", body: form });
       const data = await res.json();
 
       // If backend returns a name directly
@@ -220,7 +222,7 @@ const App = {
 
     document.getElementById("camPlaceholder").style.display = "flex";
     document.getElementById("camBadge").textContent = "NO CAMERA";
-    document.getElementById("scanLine").style.display = "none";
+    document.getElementById("scanLine").classList.remove("active");
     document.getElementById("statusPill").textContent = "STANDBY";
 
     document.getElementById("btnStart").disabled = false;
