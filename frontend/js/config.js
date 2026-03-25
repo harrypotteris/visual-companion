@@ -4,7 +4,9 @@
 
 window.Config = {
 
-  /* Backend API */
+  /* ===============================
+     Backend API
+  =============================== */
   API_BASE: "https://visual-companion-backend.onrender.com",
 
   ENDPOINTS: {
@@ -13,24 +15,39 @@ window.Config = {
     people: "/people"
   },
 
-  /* Face API model path */
-  FACE_MODELS: "/backend/models",
+  /* ===============================
+     Face API model path
+     (IMPORTANT: must match deployment)
+  =============================== */
+  FACE_MODELS: "/models", 
+  // ⚠️ Changed from "/backend/models"
+  // This avoids 404 in production unless you actually host at /backend/models
 
-  /* AI settings */
+  /* ===============================
+     AI settings
+  =============================== */
   AI: {
     speakResults: true,
-    confidenceThreshold: 0.6
+    confidenceThreshold: 0.6,   // good default for recognition
+    maxResults: 5               // 🔥 prevents UI overload (safe addition)
   },
 
-  /* Monitoring */
+  /* ===============================
+     Monitoring
+  =============================== */
   MONITOR: {
-    interval: 4000
+    interval: 4000,             // 4 sec scan
+    autoStart: true             // 🔥 useful for deployment
   },
 
-  /* Voice */
+  /* ===============================
+     Voice
+  =============================== */
   VOICE: {
     lang: "en-US",
-    continuous: true
+    continuous: true,
+    rate: 1,
+    pitch: 1
   }
 
 };
