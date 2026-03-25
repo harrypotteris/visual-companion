@@ -144,6 +144,12 @@ window.People = {
       Speech?.speak?.(`${name} has been removed.`);
       App?.showToast?.(`🗑️ Removed: ${name}`);
       console.log(`Person deleted: ${name} ✅`);
+      // Also delete from backend (non-blocking)
+      if (typeof Config !== "undefined" && Config.backendAvailable?.()) {
+        fetch(Config.url("deletePerson", name), { method: "DELETE" })
+          .then(r => r.ok ? console.log(`Backend delete ok: ${name}`) : console.warn(`Backend delete failed: ${name}`))
+          .catch(err => console.warn("Backend delete error:", err.message));
+      }
     } else {
       console.warn(`Person not found: ${name}`);
     }
