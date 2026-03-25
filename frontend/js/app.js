@@ -164,25 +164,74 @@ const App = {
       return;
     }
 
-    document.getElementById("saveOverlay").style.display = "flex";
-    Speech.speak("Say the person's name.");
+    // Capture the frame NOW while camera is live
+    this._captureBlob().then(blob => {
+      this._pendingBlob = blob;
 
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SpeechRecognition();
-    rec.lang = Config?.VOICE?.lang || "en-US";
+      // Show preview immediately
+      const canvas = document.getElementById("canvas");
+      document.getElementById("savePreviewImg").src = canvas.toDataURL();
 
-    rec.onresult = async (e) => {
-      const name = e.results[0][0].transcript.trim();
-      await this._doSave(name);
-    };
+      // Show overlay and prompt
+      document.getElementById("saveOverlay").style.display = "flex";
+      document.getElementById("saveStatus").textContent = "Listening for name...";
+      document.getElementById("saveVoiceHint").textContent = "Say the person\'s name or type below";
+      document.getElementById("saveNameInput").value = "";
+      document.getElementById("saveNameInput").style.display = "block";
+      document.getElementById("saveConfirmBtn").style.display = "inline-block";
 
-    rec.onerror = () => {
-      document.getElementById("saveOverlay").style.display = "none";
-      Speech.speak("Could not hear the name. Please try again.");
-    };
+      // Stop main speech recognition to avoid conflicts
+      Speech.stop();
+      Speech.speak("Say the person\'s name.");
 
-    try { rec.start(); } catch (err) { console.warn("rec.start blocked:", err); }
+      // Start a fresh one-shot recogniser
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const rec = new SpeechRecognition();
+        rec.lang = Config?.VOICE?.lang || "en-US";
+        rec.maxAlternatives = 1;
+
+        rec.onresult = (e) => {
+          const name = e.results[0][0].transcript.trim();
+          document.getElementById("saveNameInput").value = name;
+          document.getElementById("saveStatus").textContent = `Heard: "${name}" — confirm or edit below`;
+        };
+
+        rec.onerror = () => {
+          document.getElementById("saveStatus").textContent = "Couldn\'t hear — type the name below";
+        };
+
+        rec.onend = () => {
+          // Restart main listener after short delay
+          setTimeout(() => Speech.listen(), 1000);
+        };
+
+        try { rec.start(); } catch (err) {
+          console.warn("rec.start blocked:", err);
+          setTimeout(() => Speech.listen(), 500);
+        }
+      }
+    });
+  },
+
+  // Called by the Confirm button in the overlay
+  confirmSave() {
+    const nameInput = document.getElementById("saveNameInput");
+    const name = nameInput?.value?.trim();
+    if (!name) {
+      document.getElementById("saveStatus").textContent = "Please enter a name first";
+      Speech.speak("Please say or type a name.");
+      return;
+    }
+    this._doSave(name);
+  },
+
+  cancelSave() {
+    this._pendingBlob = null;
+    document.getElementById("saveOverlay").style.display = "none";
+    document.getElementById("saveNameInput").style.display = "none";
+    document.getElementById("saveConfirmBtn").style.display = "none";
+    setTimeout(() => Speech.listen(), 500);
   },
 
   /* ===============================
@@ -320,22 +369,32 @@ const App = {
      PRIVATE — shared save logic
   =============================== */
   async _doSave(name) {
+    const statusEl = document.getElementById("saveStatus");
     try {
-      document.getElementById("saveStatus").textContent = `Saving "${name}"...`;
-      document.getElementById("saveVoiceHint").textContent = `Heard: "${name}"`;
+      if (statusEl) statusEl.textContent = `Saving "${name}"...`;
 
-      const blob = await this._captureBlob();
-
-      // Show preview
-      const canvas = document.getElementById("canvas");
-      document.getElementById("savePreviewImg").src = canvas.toDataURL();
+      // Use pre-captured blob if available, otherwise capture now
+      const blob = this._pendingBlob || await this._captureBlob();
+      this._pendingBlob = null;
 
       await People.save(name, blob);
+
+      if (statusEl) statusEl.textContent = `✅ Saved: ${name}`;
+      setTimeout(() => {
+        document.getElementById("saveOverlay").style.display = "none";
+        document.getElementById("saveNameInput").style.display = "none";
+        document.getElementById("saveConfirmBtn").style.display = "none";
+      }, 800);
+
     } catch (err) {
       console.error("Save error:", err);
+      if (statusEl) statusEl.textContent = "❌ Save failed — try again";
       Speech.speak("Sorry, something went wrong while saving.");
+      setTimeout(() => {
+        document.getElementById("saveOverlay").style.display = "none";
+      }, 1500);
     } finally {
-      document.getElementById("saveOverlay").style.display = "none";
+      setTimeout(() => Speech.listen(), 1200);
     }
   },
 
