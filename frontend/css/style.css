@@ -517,3 +517,115 @@ body::before {
   .camera-panel { border-right:none; border-bottom:1px solid var(--border); }
   .panel { height:480px; }
 }
+
+/* ── FEED CARD (live descriptions) ───────────────────────── */
+.feed-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  animation: slideIn 0.28s ease;
+  flex-shrink: 0;
+}
+.feed-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.57rem;
+  color: var(--muted);
+  margin-bottom: 5px;
+  letter-spacing: 0.05em;
+}
+.feed-text {
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+/* ── PERSON CARD (people tab) ────────────────────────────── */
+.person-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 13px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  animation: slideIn 0.28s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  position: relative;
+}
+.person-card:hover { border-color: rgba(0,229,176,0.3); }
+
+.person-avatar-wrap {
+  width: 56px; height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--s3);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.person-avatar-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.person-avatar {
+  font-size: 1.6rem;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
+.person-info { flex: 1; min-width: 0; }
+.person-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-time {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+}
+.person-delete-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.18s, background 0.18s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.person-delete-btn:hover {
+  color: var(--warn);
+  background: rgba(255,87,34,0.1);
+}
+
+/* ── COMMAND ITEM (commands tab) ─────────────────────────── */
+.command-item {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.command-phrase {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+.command-desc {
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
