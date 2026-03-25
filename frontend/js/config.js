@@ -1,6 +1,6 @@
 /* ==========================================
    VISUAL COMPANION — CONFIG
-   v2.0 — aligned with People Manager v2
+   v2.1 — added recognize + deletePerson endpoints
 ========================================== */
 window.Config = {
 
@@ -9,9 +9,11 @@ window.Config = {
   =============================== */
   API_BASE: "https://visual-companion-backend.onrender.com",
   ENDPOINTS: {
-    describe:   "/describe",
-    savePerson: "/save-person",
-    people:     "/people"
+    describe:     "/describe",
+    savePerson:   "/save-person",
+    recognize:    "/recognize",
+    people:       "/people",
+    deletePerson: "/people"   // DELETE /people/:name
   },
 
   /* ===============================
@@ -23,29 +25,29 @@ window.Config = {
      AI / Recognition settings
   =============================== */
   AI: {
-    speakResults:          true,
-    confidenceThreshold:   0.6,   // minimum score to accept a face match
-    maxResults:            5,     // max faces shown per frame
-    unknownLabel:          "Unknown Person",   // spoken when face not recognised
-    saveUnknownFaces:      false  // set true to auto-prompt saving unrecognised faces
+    speakResults:        true,
+    confidenceThreshold: 0.6,
+    maxResults:          5,
+    unknownLabel:        "Unknown Person",
+    saveUnknownFaces:    false
   },
 
   /* ===============================
      People / Recognition behaviour
   =============================== */
   PEOPLE: {
-    storageKey:      "visual_companion_people",  // must match People.STORAGE_KEY
-    maxImageSizeKB:  200,          // base64 images larger than this won't be cached locally
-    greetOnRecognise: true,        // speak name when a known person is detected
-    greetCooldownMs:  10000        // don't re-greet the same person within 10 seconds
+    storageKey:       "visual_companion_people",
+    maxImageSizeKB:   200,
+    greetOnRecognise: true,
+    greetCooldownMs:  10000
   },
 
   /* ===============================
      Monitoring (live camera scan)
   =============================== */
   MONITOR: {
-    interval:    4000,   // ms between each scan frame
-    autoStart:   true    // start scanning as soon as camera is ready
+    interval:  4000,
+    autoStart: true
   },
 
   /* ===============================
@@ -60,8 +62,6 @@ window.Config = {
 
   /* ===============================
      HELPER — is backend reachable?
-     Call Config.backendAvailable() before
-     any fetch to avoid uncaught errors
   =============================== */
   backendAvailable() {
     return (
@@ -73,14 +73,16 @@ window.Config = {
 
   /* ===============================
      HELPER — full URL builder
-     Usage: Config.url("savePerson")
+     Config.url("savePerson")             → "https://.../save-person"
+     Config.url("deletePerson", "Rahul")  → "https://.../people/Rahul"
   =============================== */
-  url(endpoint) {
-    const path = this.ENDPOINTS[endpoint];
-    if (!path) {
+  url(endpoint, param) {
+    const base = this.ENDPOINTS[endpoint];
+    if (!base) {
       console.warn(`Config.url: unknown endpoint "${endpoint}"`);
       return null;
     }
-    return this.API_BASE + path;
+    const full = this.API_BASE + base;
+    return param ? `${full}/${encodeURIComponent(param)}` : full;
   }
 };
