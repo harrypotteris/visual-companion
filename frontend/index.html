@@ -105,7 +105,19 @@
     <div class="save-status" id="saveStatus">Analyzing appearance...</div>
     <div class="save-voice-indicator">
       <span>🎤</span>
-      <span id="saveVoiceHint">Please say the person's name</span>
+      <span id="saveVoiceHint">Say the name or type below</span>
+    </div>
+    <input
+      type="text"
+      id="saveNameInput"
+      class="save-name-input"
+      placeholder="Type name here..."
+      style="display:none"
+      onkeydown="if(event.key==='Enter') App.confirmSave()"
+    />
+    <div class="save-actions" style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+      <button id="saveConfirmBtn" class="btn btn-primary" style="display:none" onclick="App.confirmSave()">✅ Save</button>
+      <button class="btn btn-ghost" onclick="App.cancelSave()">✕ Cancel</button>
     </div>
   </div>
 </div>
