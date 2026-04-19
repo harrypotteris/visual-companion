@@ -20,6 +20,151 @@ const App = {
 
     document.getElementById("vbStatus").textContent = "Ready — say a command";
     document.getElementById("statusPill").textContent = "READY";
+
+    // Show welcome intro after a short delay so the page settles
+    setTimeout(() => this._showWelcomeIntro(), 800);
+  },
+
+  /* ===============================
+     WELCOME INTRO — popup + voice
+  =============================== */
+  _showWelcomeIntro() {
+    // ── Build the popup ──────────────────────────────────────────
+    const overlay = document.createElement("div");
+    overlay.id = "welcomeOverlay";
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:9999;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);
+      animation:vcFadeIn .35s ease;
+    `;
+
+    const box = document.createElement("div");
+    box.style.cssText = `
+      background:#0d0e14;border:1px solid #2a2d3e;border-radius:16px;
+      padding:32px 36px;max-width:480px;width:90%;text-align:center;
+      font-family:inherit;color:#e8eaf0;position:relative;
+      animation:vcSlideUp .4s ease;
+    `;
+
+    box.innerHTML = `
+      <div style="font-size:2.2rem;margin-bottom:12px">👁</div>
+      <h2 style="font-size:1.3rem;font-weight:600;margin:0 0 6px;letter-spacing:.04em;color:#fff">
+        Welcome to Visual Companion
+      </h2>
+      <p style="font-size:.85rem;color:#8a8fa8;margin:0 0 20px;line-height:1.6">
+        Your AI-powered eye — it sees, describes, and recognises people around you in real time.
+      </p>
+
+      <div id="wcProgress" style="height:3px;border-radius:3px;background:#1e2130;margin-bottom:20px;overflow:hidden">
+        <div id="wcBar" style="height:100%;width:0%;background:linear-gradient(90deg,#4f6ef7,#7c3aed);transition:width .15s linear"></div>
+      </div>
+
+      <div style="text-align:left;background:#13141d;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+        <div style="font-size:.72rem;letter-spacing:.1em;color:#4f6ef7;margin-bottom:10px;font-weight:600">VOICE COMMANDS</div>
+        <div id="wcCmdList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:.78rem"></div>
+      </div>
+
+      <p id="wcFooter" style="font-size:.78rem;color:#5a5f78;margin:0 0 16px">
+        Closing automatically in <span id="wcCountdown">8</span>s…
+      </p>
+      <button id="wcDismiss" style="
+        background:transparent;border:1px solid #2a2d3e;color:#8a8fa8;
+        padding:7px 22px;border-radius:8px;font-size:.8rem;cursor:pointer;
+        transition:border-color .2s,color .2s;
+      " onmouseover="this.style.borderColor='#4f6ef7';this.style.color='#fff'"
+         onmouseout="this.style.borderColor='#2a2d3e';this.style.color='#8a8fa8'">
+        Got it — dismiss
+      </button>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // Inject keyframe animations once
+    if (!document.getElementById("vcIntroStyles")) {
+      const style = document.createElement("style");
+      style.id = "vcIntroStyles";
+      style.textContent = `
+        @keyframes vcFadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes vcSlideUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // ── Populate command pills ─────────────────────────────────
+    const featured = [
+      ["start camera",     "Turn on camera"],
+      ["start monitor",    "Auto-describe scene"],
+      ["describe",         "Describe what's in view"],
+      ["who is this",      "Identify a face"],
+      ["save this person", "Enroll someone new"],
+      ["forget [name]",    "Remove a saved person"],
+      ["show people",      "Open face registry"],
+      ["help / commands",  "List all commands"],
+    ];
+    const list = document.getElementById("wcCmdList");
+    featured.forEach(([cmd, desc]) => {
+      const item = document.createElement("div");
+      item.style.cssText = "display:flex;flex-direction:column;gap:1px";
+      item.innerHTML = `
+        <span style="color:#c8cadc;font-weight:500">"${cmd}"</span>
+        <span style="color:#5a5f78;font-size:.7rem">${desc}</span>
+      `;
+      list.appendChild(item);
+    });
+
+    // ── Dismiss logic ──────────────────────────────────────────
+    const DURATION = 8000; // ms before auto-close
+    let remaining = DURATION;
+    const interval = 80;
+
+    const dismiss = () => {
+      clearInterval(timer);
+      overlay.style.transition = "opacity .3s";
+      overlay.style.opacity = "0";
+      setTimeout(() => overlay.remove(), 320);
+    };
+
+    document.getElementById("wcDismiss").addEventListener("click", dismiss);
+
+    const timer = setInterval(() => {
+      remaining -= interval;
+      const pct = ((DURATION - remaining) / DURATION) * 100;
+      const bar = document.getElementById("wcBar");
+      if (bar) bar.style.width = pct + "%";
+
+      const secs = Math.ceil(remaining / 1000);
+      const cd = document.getElementById("wcCountdown");
+      if (cd) cd.textContent = secs;
+
+      if (remaining <= 0) dismiss();
+    }, interval);
+
+    // ── Voice narration ────────────────────────────────────────
+    const lines = [
+      "Welcome to Visual Companion.",
+      "I am your AI-powered eye. I can see what's in front of the camera, describe scenes, and recognise people.",
+      "Here are the commands you can start using now: " +
+      "Say start camera to turn on the camera. " +
+      "Say start monitor to auto-describe the scene every few seconds. " +
+      "Say describe to get an instant description. " +
+      "Say who is this to identify a face. " +
+      "Say save this person to enroll someone new. " +
+      "Say forget followed by a name to remove them. " +
+      "And say help or commands to see the full list.",
+      "I'm ready whenever you are. Go ahead and say start camera to begin."
+    ];
+
+    // Chain utterances cleanly (speechSynthesis queue)
+    window.speechSynthesis.cancel();
+    lines.forEach(line => {
+      const u = new SpeechSynthesisUtterance(line);
+      u.lang  = Config?.VOICE?.lang  || "en-US";
+      u.rate  = Config?.VOICE?.rate  ? Math.min(Config.VOICE.rate, 0.95) : 0.92;
+      u.pitch = Config?.VOICE?.pitch || 1;
+      window.speechSynthesis.speak(u);
+    });
   },
 
   /* ===============================
