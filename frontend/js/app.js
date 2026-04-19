@@ -6,74 +6,95 @@ const App = {
   video: null,
   monitorInterval: null,
   isAnalyzing: false,
-  _greetCooldowns: {}, // tracks last greet time per person name
+  _greetCooldowns: {},
 
-  /* ===============================
-     INIT ON PAGE LOAD
-  =============================== */
   async init() {
     this.renderCommands();
-    // Load face-api models for client-side detection (used by AI.analyzeFrame)
     try { await AI.loadModels(); } catch(e) { console.warn("Face models unavailable:", e.message); }
     await People.load();
-    Speech.listen();
+
+    // NOTE: Speech.listen() is intentionally NOT called here.
+    // It starts AFTER the welcome narration finishes inside _showWelcomeIntro.
+    // Starting the mic before speaking blocks speechSynthesis on Chrome/mobile.
 
     document.getElementById("vbStatus").textContent = "Ready — say a command";
     document.getElementById("statusPill").textContent = "READY";
 
-    // Show welcome intro after a short delay so the page settles
-    setTimeout(() => this._showWelcomeIntro(), 800);
+    setTimeout(() => this._showWelcomeIntro(), 600);
   },
 
-  /* ===============================
-     WELCOME INTRO — popup + voice
-  =============================== */
   _showWelcomeIntro() {
-    // ── Build the popup ──────────────────────────────────────────
+
+    if (!document.getElementById("vcIntroStyles")) {
+      const s = document.createElement("style");
+      s.id = "vcIntroStyles";
+      s.textContent = `
+        @keyframes vcFadeIn  { from{opacity:0}to{opacity:1} }
+        @keyframes vcSlideUp { from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)} }
+        @keyframes wcPulse   { 0%,100%{background:transparent}50%{background:#1a2240} }
+      `;
+      document.head.appendChild(s);
+    }
+
+    const featured = [
+      { cmd: "start camera",     desc: "Turn on the camera",       say: "Say start camera, to turn on the camera." },
+      { cmd: "start monitor",    desc: "Auto-describe the scene",  say: "Say start monitor, to automatically describe the scene every few seconds." },
+      { cmd: "describe",         desc: "Instant description",      say: "Say describe, for an instant description of what I can see right now." },
+      { cmd: "who is this",      desc: "Identify a face",          say: "Say who is this, to identify the person in front of the camera." },
+      { cmd: "save this person", desc: "Enroll someone new",       say: "Say save this person, to remember a new face." },
+      { cmd: "forget [name]",    desc: "Remove a saved person",    say: "Say forget, followed by a name, to remove them from memory." },
+      { cmd: "show people",      desc: "Open face registry",       say: "Say show people, to open your saved faces list." },
+      { cmd: "help / commands",  desc: "See all commands",         say: "And say help or commands, to see the full list at any time." },
+    ];
+
     const overlay = document.createElement("div");
     overlay.id = "welcomeOverlay";
     overlay.style.cssText = `
       position:fixed;inset:0;z-index:9999;
       display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);
+      background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);
       animation:vcFadeIn .35s ease;
     `;
 
     const box = document.createElement("div");
     box.style.cssText = `
       background:#0d0e14;border:1px solid #2a2d3e;border-radius:16px;
-      padding:32px 36px;max-width:480px;width:90%;text-align:center;
-      font-family:inherit;color:#e8eaf0;position:relative;
+      padding:28px 32px;max-width:480px;width:92%;text-align:center;
+      font-family:inherit;color:#e8eaf0;
       animation:vcSlideUp .4s ease;
     `;
 
+    const cmdRowsHTML = featured.map((f, i) => `
+      <div id="wcRow${i}" style="display:flex;flex-direction:column;gap:2px;padding:5px 7px;transition:background .3s;border-radius:6px">
+        <span style="color:#c8cadc;font-weight:500;font-size:.79rem">"${f.cmd}"</span>
+        <span style="color:#5a5f78;font-size:.69rem">${f.desc}</span>
+      </div>
+    `).join("");
+
     box.innerHTML = `
-      <div style="font-size:2.2rem;margin-bottom:12px">👁</div>
-      <h2 style="font-size:1.3rem;font-weight:600;margin:0 0 6px;letter-spacing:.04em;color:#fff">
+      <div style="font-size:2rem;margin-bottom:10px">👁</div>
+      <h2 style="font-size:1.25rem;font-weight:600;margin:0 0 6px;color:#fff;letter-spacing:.03em">
         Welcome to Visual Companion
       </h2>
-      <p style="font-size:.85rem;color:#8a8fa8;margin:0 0 20px;line-height:1.6">
-        Your AI-powered eye — it sees, describes, and recognises people around you in real time.
+      <p style="font-size:.83rem;color:#8a8fa8;margin:0 0 16px;line-height:1.6">
+        Your AI-powered eye — sees, describes, and recognises people in real time.
       </p>
-
-      <div id="wcProgress" style="height:3px;border-radius:3px;background:#1e2130;margin-bottom:20px;overflow:hidden">
-        <div id="wcBar" style="height:100%;width:0%;background:linear-gradient(90deg,#4f6ef7,#7c3aed);transition:width .15s linear"></div>
+      <div style="height:3px;border-radius:3px;background:#1e2130;margin-bottom:16px;overflow:hidden">
+        <div id="wcBar" style="height:100%;width:0%;background:linear-gradient(90deg,#4f6ef7,#7c3aed);transition:width .12s linear"></div>
       </div>
-
-      <div style="text-align:left;background:#13141d;border-radius:10px;padding:14px 16px;margin-bottom:20px">
-        <div style="font-size:.72rem;letter-spacing:.1em;color:#4f6ef7;margin-bottom:10px;font-weight:600">VOICE COMMANDS</div>
-        <div id="wcCmdList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:.78rem"></div>
+      <div style="text-align:left;background:#13141d;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:.68rem;letter-spacing:.1em;color:#4f6ef7;margin-bottom:8px;font-weight:600">VOICE COMMANDS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px">${cmdRowsHTML}</div>
       </div>
-
-      <p id="wcFooter" style="font-size:.78rem;color:#5a5f78;margin:0 0 16px">
-        Closing automatically in <span id="wcCountdown">8</span>s…
+      <p style="font-size:.75rem;color:#5a5f78;margin:0 0 14px">
+        Closing in <span id="wcCountdown">—</span>s
       </p>
       <button id="wcDismiss" style="
         background:transparent;border:1px solid #2a2d3e;color:#8a8fa8;
         padding:7px 22px;border-radius:8px;font-size:.8rem;cursor:pointer;
-        transition:border-color .2s,color .2s;
-      " onmouseover="this.style.borderColor='#4f6ef7';this.style.color='#fff'"
-         onmouseout="this.style.borderColor='#2a2d3e';this.style.color='#8a8fa8'">
+        transition:border-color .2s,color .2s;"
+        onmouseover="this.style.borderColor='#4f6ef7';this.style.color='#fff'"
+        onmouseout="this.style.borderColor='#2a2d3e';this.style.color='#8a8fa8'">
         Got it — dismiss
       </button>
     `;
@@ -81,112 +102,99 @@ const App = {
     overlay.appendChild(box);
     document.body.appendChild(overlay);
 
-    // Inject keyframe animations once
-    if (!document.getElementById("vcIntroStyles")) {
-      const style = document.createElement("style");
-      style.id = "vcIntroStyles";
-      style.textContent = `
-        @keyframes vcFadeIn  { from{opacity:0} to{opacity:1} }
-        @keyframes vcSlideUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
-      `;
-      document.head.appendChild(style);
-    }
-
-    // ── Populate command pills ─────────────────────────────────
-    const featured = [
-      ["start camera",     "Turn on camera"],
-      ["start monitor",    "Auto-describe scene"],
-      ["describe",         "Describe what's in view"],
-      ["who is this",      "Identify a face"],
-      ["save this person", "Enroll someone new"],
-      ["forget [name]",    "Remove a saved person"],
-      ["show people",      "Open face registry"],
-      ["help / commands",  "List all commands"],
-    ];
-    const list = document.getElementById("wcCmdList");
-    featured.forEach(([cmd, desc]) => {
-      const item = document.createElement("div");
-      item.style.cssText = "display:flex;flex-direction:column;gap:1px";
-      item.innerHTML = `
-        <span style="color:#c8cadc;font-weight:500">"${cmd}"</span>
-        <span style="color:#5a5f78;font-size:.7rem">${desc}</span>
-      `;
-      list.appendChild(item);
-    });
-
-    // ── Dismiss logic ──────────────────────────────────────────
-    const DURATION = 8000; // ms before auto-close
-    let remaining = DURATION;
-    const interval = 80;
+    let dismissed = false;
+    let countdownTimer = null;
 
     const dismiss = () => {
-      clearInterval(timer);
+      if (dismissed) return;
+      dismissed = true;
+      clearInterval(countdownTimer);
+      window.speechSynthesis.cancel();
       overlay.style.transition = "opacity .3s";
       overlay.style.opacity = "0";
-      setTimeout(() => overlay.remove(), 320);
+      setTimeout(() => {
+        overlay.remove();
+        Speech.listen(); // start mic ONLY after popup is gone and speech is done
+      }, 320);
     };
 
     document.getElementById("wcDismiss").addEventListener("click", dismiss);
 
-    const timer = setInterval(() => {
-      remaining -= interval;
-      const pct = ((DURATION - remaining) / DURATION) * 100;
-      const bar = document.getElementById("wcBar");
-      if (bar) bar.style.width = pct + "%";
-
-      const secs = Math.ceil(remaining / 1000);
+    const startCountdown = () => {
+      if (dismissed) return;
+      const SECS = 5;
+      let rem = SECS;
       const cd = document.getElementById("wcCountdown");
-      if (cd) cd.textContent = secs;
+      const bar = document.getElementById("wcBar");
+      if (cd) cd.textContent = SECS;
 
-      if (remaining <= 0) dismiss();
-    }, interval);
+      countdownTimer = setInterval(() => {
+        if (dismissed) { clearInterval(countdownTimer); return; }
+        rem -= 0.1;
+        if (bar) bar.style.width = ((SECS - rem) / SECS * 100).toFixed(1) + "%";
+        if (cd) cd.textContent = Math.ceil(rem);
+        if (rem <= 0) dismiss();
+      }, 100);
+    };
 
-    // ── Voice narration ────────────────────────────────────────
-    const lines = [
-      "Welcome to Visual Companion.",
-      "I am your AI-powered eye. I can see what's in front of the camera, describe scenes, and recognise people.",
-      "Here are the commands you can start using now: " +
-      "Say start camera to turn on the camera. " +
-      "Say start monitor to auto-describe the scene every few seconds. " +
-      "Say describe to get an instant description. " +
-      "Say who is this to identify a face. " +
-      "Say save this person to enroll someone new. " +
-      "Say forget followed by a name to remove them. " +
-      "And say help or commands to see the full list.",
-      "I'm ready whenever you are. Go ahead and say start camera to begin."
-    ];
-
-    // Chain utterances cleanly (speechSynthesis queue)
-    window.speechSynthesis.cancel();
-    lines.forEach(line => {
-      const u = new SpeechSynthesisUtterance(line);
+    // KEY FIX: chain via onend — never queue multiple utterances at once.
+    // Browser speech queues are unreliable; onend chaining works everywhere.
+    const speak = (text, onDone) => {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
       u.lang  = Config?.VOICE?.lang  || "en-US";
-      u.rate  = Config?.VOICE?.rate  ? Math.min(Config.VOICE.rate, 0.95) : 0.92;
+      u.rate  = 0.9;
       u.pitch = Config?.VOICE?.pitch || 1;
+      u.onend   = () => { setTimeout(() => { if (onDone) onDone(); }, 150); };
+      u.onerror = () => { setTimeout(() => { if (onDone) onDone(); }, 150); };
       window.speechSynthesis.speak(u);
+    };
+
+    // Phase 2: read each command one by one, highlight the row as it's spoken
+    let cmdIndex = 0;
+    const readNextCommand = () => {
+      if (dismissed) return;
+      if (cmdIndex >= featured.length) {
+        speak("You are all set. Say start camera to begin.", () => {
+          if (!dismissed) startCountdown();
+        });
+        return;
+      }
+      const i = cmdIndex++;
+      const row = document.getElementById("wcRow" + i);
+      if (row) {
+        row.style.background = "#1a2240";
+        setTimeout(() => { if (row) row.style.background = "transparent"; }, 1500);
+      }
+      speak(featured[i].say, readNextCommand);
+    };
+
+    // Phase 1: greet and describe what the popup shows, then hand off to commands
+    speak("Welcome to Visual Companion.", () => {
+      if (dismissed) return;
+      speak("I am your AI powered eye. I can see what is in front of the camera, describe scenes, and recognise people in real time.", () => {
+        if (dismissed) return;
+        speak("Here are the voice commands you can start using right now.", () => {
+          if (dismissed) return;
+          setTimeout(readNextCommand, 200);
+        });
+      });
     });
   },
 
-  /* ===============================
-     START CAMERA
-  =============================== */
   async startCamera() {
     try {
       if (this.video?.srcObject) return;
-
       this.video = document.getElementById("video");
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       this.video.srcObject = stream;
-
       document.getElementById("camPlaceholder").style.display = "none";
       document.getElementById("camBadge").textContent = "LIVE";
       document.getElementById("statusPill").textContent = "CAMERA ON";
-
       document.getElementById("btnMonitor").disabled = false;
       document.getElementById("btnAnalyze").disabled = false;
       document.getElementById("btnStop").disabled = false;
       document.getElementById("btnStart").disabled = true;
-
       Speech.speak("Camera started.");
     } catch (err) {
       console.error("Camera error:", err);
@@ -194,172 +202,91 @@ const App = {
     }
   },
 
-  /* ===============================
-     START MONITORING
-  =============================== */
   startMonitor() {
     if (this.monitorInterval) return;
-
-    this.monitorInterval = setInterval(() => {
-      this.analyzeNow();
-    }, Config.MONITOR.interval);
-
+    this.monitorInterval = setInterval(() => { this.analyzeNow(); }, Config.MONITOR.interval);
     document.getElementById("statusPill").textContent = "MONITORING";
     document.getElementById("scanLine").classList.add("active");
-
     Speech.speak("Monitoring started.");
   },
 
-  /* ===============================
-     ANALYZE CURRENT FRAME
-  =============================== */
   async analyzeNow() {
     if (this.isAnalyzing) return;
-    if (!this.video?.srcObject) {
-      Speech.speak("Start the camera first.");
-      return;
-    }
-
+    if (!this.video?.srcObject) { Speech.speak("Start the camera first."); return; }
     this.isAnalyzing = true;
-
     try {
       document.getElementById("thinkingIndicator").classList.add("show");
-
       const blob = await this._captureBlob();
-
       const form = new FormData();
       form.append("image", blob);
-
       const res = await fetch(Config.url("describe"), { method: "POST", body: form });
       const data = await res.json();
-
       document.getElementById("thinkingIndicator").classList.remove("show");
-
       if (data?.description) {
         if (Config.AI.speakResults) Speech.speak(data.description);
         this.addLiveFeedCard(data.description);
       }
-
     } catch (err) {
       console.error("Analyze error:", err);
       document.getElementById("thinkingIndicator").classList.remove("show");
     }
-
     this.isAnalyzing = false;
   },
 
-  /* ===============================
-     RECOGNIZE CURRENT FACE
-     Called by: voice "who is this",
-     button, or monitor loop
-  =============================== */
   async recognizeCurrentFace() {
-    if (!this.video?.srcObject) {
-      Speech.speak("Start the camera first.");
-      return;
-    }
-
+    if (!this.video?.srcObject) { Speech.speak("Start the camera first."); return; }
     this.showToast("🔍 Recognizing...");
-
     try {
       const blob = await this._captureBlob();
       const form = new FormData();
       form.append("image", blob);
-
-      // Ask the dedicated /recognize endpoint
       const res = await fetch(Config.url("recognize"), { method: "POST", body: form });
       const data = await res.json();
-
-      // If backend returns a name directly
-      if (data?.name) {
-        this._announceRecognized(data.name);
-        return;
-      }
-
-      // Fallback: try matching description text against saved people names
+      if (data?.name) { this._announceRecognized(data.name); return; }
       if (data?.description) {
-        const matched = People.list.find(p =>
-          data.description.toLowerCase().includes(p.name.toLowerCase())
-        );
-        if (matched) {
-          this._announceRecognized(matched.name);
-          return;
-        }
+        const matched = People.list.find(p => data.description.toLowerCase().includes(p.name.toLowerCase()));
+        if (matched) { this._announceRecognized(matched.name); return; }
       }
-
-      // Nobody matched
       const unknown = Config.AI.unknownLabel || "Unknown Person";
-      Speech.speak(`I don't recognise this person. ${
-        Config.AI.saveUnknownFaces ? "Would you like to save them?" : ""
-      }`);
+      Speech.speak(`I don't recognise this person. ${Config.AI.saveUnknownFaces ? "Would you like to save them?" : ""}`);
       this.showToast(`❓ ${unknown}`);
-
     } catch (err) {
       console.error("Recognition error:", err);
       Speech.speak("Sorry, I couldn't identify that person.");
     }
   },
 
-  /* ===============================
-     SAVE PERSON — voice prompts name
-  =============================== */
   savePerson() {
-    if (!this.video?.srcObject) {
-      Speech.speak("Start the camera first.");
-      return;
-    }
-
-    // Capture the frame NOW while camera is live
+    if (!this.video?.srcObject) { Speech.speak("Start the camera first."); return; }
     this._captureBlob().then(blob => {
       this._pendingBlob = blob;
-
-      // Show preview immediately
       const canvas = document.getElementById("canvas");
       document.getElementById("savePreviewImg").src = canvas.toDataURL();
-
-      // Show overlay and prompt
       document.getElementById("saveOverlay").style.display = "flex";
       document.getElementById("saveStatus").textContent = "Listening for name...";
-      document.getElementById("saveVoiceHint").textContent = "Say the person\'s name or type below";
+      document.getElementById("saveVoiceHint").textContent = "Say the person's name or type below";
       document.getElementById("saveNameInput").value = "";
       document.getElementById("saveNameInput").style.display = "block";
       document.getElementById("saveConfirmBtn").style.display = "inline-block";
-
-      // Stop main speech recognition to avoid conflicts
       Speech.stop();
-      Speech.speak("Say the person\'s name.");
-
-      // Start a fresh one-shot recogniser
+      Speech.speak("Say the person's name.");
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const rec = new SpeechRecognition();
         rec.lang = Config?.VOICE?.lang || "en-US";
         rec.maxAlternatives = 1;
-
         rec.onresult = (e) => {
           const name = e.results[0][0].transcript.trim();
           document.getElementById("saveNameInput").value = name;
           document.getElementById("saveStatus").textContent = `Heard: "${name}" — confirm or edit below`;
         };
-
-        rec.onerror = () => {
-          document.getElementById("saveStatus").textContent = "Couldn\'t hear — type the name below";
-        };
-
-        rec.onend = () => {
-          // Restart main listener after short delay
-          setTimeout(() => Speech.listen(), 1000);
-        };
-
-        try { rec.start(); } catch (err) {
-          console.warn("rec.start blocked:", err);
-          setTimeout(() => Speech.listen(), 500);
-        }
+        rec.onerror = () => { document.getElementById("saveStatus").textContent = "Couldn't hear — type the name below"; };
+        rec.onend = () => { setTimeout(() => Speech.listen(), 1000); };
+        try { rec.start(); } catch (err) { console.warn("rec.start blocked:", err); setTimeout(() => Speech.listen(), 500); }
       }
     });
   },
 
-  // Called by the Confirm button in the overlay
   confirmSave() {
     const nameInput = document.getElementById("saveNameInput");
     const name = nameInput?.value?.trim();
@@ -379,76 +306,39 @@ const App = {
     setTimeout(() => Speech.listen(), 500);
   },
 
-  /* ===============================
-     SAVE PERSON — name passed directly
-     Called by: "save this person as Rahul"
-  =============================== */
   async savePersonWithName(name) {
-    if (!name || name.trim() === "") {
-      Speech.speak("Please provide a name.");
-      return;
-    }
-    if (!this.video?.srcObject) {
-      Speech.speak("Start the camera first.");
-      return;
-    }
-
+    if (!name || name.trim() === "") { Speech.speak("Please provide a name."); return; }
+    if (!this.video?.srcObject) { Speech.speak("Start the camera first."); return; }
     document.getElementById("saveOverlay").style.display = "flex";
     document.getElementById("saveStatus").textContent = `Saving "${name}"...`;
     document.getElementById("saveVoiceHint").textContent = `Name: "${name}"`;
-
     await this._doSave(name);
   },
 
-  /* ===============================
-     STOP EVERYTHING
-  =============================== */
   stopAll() {
-    if (this.monitorInterval) {
-      clearInterval(this.monitorInterval);
-      this.monitorInterval = null;
-    }
-
-    if (this.video?.srcObject) {
-      this.video.srcObject.getTracks().forEach(t => t.stop());
-      this.video.srcObject = null;
-    }
-
+    if (this.monitorInterval) { clearInterval(this.monitorInterval); this.monitorInterval = null; }
+    if (this.video?.srcObject) { this.video.srcObject.getTracks().forEach(t => t.stop()); this.video.srcObject = null; }
     document.getElementById("camPlaceholder").style.display = "flex";
     document.getElementById("camBadge").textContent = "NO CAMERA";
     document.getElementById("scanLine").classList.remove("active");
     document.getElementById("statusPill").textContent = "STANDBY";
-
     document.getElementById("btnStart").disabled = false;
     document.getElementById("btnMonitor").disabled = true;
     document.getElementById("btnAnalyze").disabled = true;
     document.getElementById("btnStop").disabled = true;
-
     Speech.speak("Stopped.");
   },
 
-  /* ===============================
-     LIVE FEED CARD
-  =============================== */
   addLiveFeedCard(description) {
     const pane = document.getElementById("pane-live");
     const empty = document.getElementById("emptyLive");
-
     if (empty) empty.style.display = "none";
-
     const card = document.createElement("div");
     card.className = "feed-card";
-    card.innerHTML = `
-      <div class="feed-time">${new Date().toLocaleTimeString()}</div>
-      <div class="feed-text">${description}</div>
-    `;
-
+    card.innerHTML = `<div class="feed-time">${new Date().toLocaleTimeString()}</div><div class="feed-text">${description}</div>`;
     pane.insertBefore(card, pane.firstChild);
   },
 
-  /* ===============================
-     TOAST
-  =============================== */
   showToast(msg) {
     const toast = document.getElementById("toast");
     if (!toast) return;
@@ -457,9 +347,6 @@ const App = {
     setTimeout(() => { toast.style.opacity = "0"; }, 3000);
   },
 
-  /* ===============================
-     TAB SWITCH
-  =============================== */
   switchTab(tabName) {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
@@ -467,29 +354,24 @@ const App = {
     document.getElementById(`pane-${tabName}`)?.classList.add("active");
   },
 
-  /* ===============================
-     COMMAND LIST
-  =============================== */
   renderCommands() {
     const grid = document.getElementById("commandsGrid");
     if (!grid) return;
-
     const commands = [
-      { cmd: "start camera",              desc: "Turns on the camera" },
-      { cmd: "start monitor",             desc: "Auto-analyzes every few seconds" },
-      { cmd: "analyze / describe",        desc: "Describe what's in view now" },
-      { cmd: "who is this",               desc: "Identify the person on screen" },
-      { cmd: "do you know [name]",        desc: "Check if someone is saved" },
-      { cmd: "save this person as [name]",desc: "Save person with a spoken name" },
-      { cmd: "save this person",          desc: "Save — then say the name" },
-      { cmd: "forget [name]",             desc: "Remove a saved person" },
-      { cmd: "who have you seen",         desc: "List all saved people" },
-      { cmd: "show people",               desc: "Open saved people tab" },
-      { cmd: "live feed",                 desc: "Go to live descriptions" },
-      { cmd: "commands / help",           desc: "Show this list" },
-      { cmd: "stop",                      desc: "Stop camera and monitoring" },
+      { cmd: "start camera",               desc: "Turns on the camera" },
+      { cmd: "start monitor",              desc: "Auto-analyzes every few seconds" },
+      { cmd: "analyze / describe",         desc: "Describe what's in view now" },
+      { cmd: "who is this",                desc: "Identify the person on screen" },
+      { cmd: "do you know [name]",         desc: "Check if someone is saved" },
+      { cmd: "save this person as [name]", desc: "Save person with a spoken name" },
+      { cmd: "save this person",           desc: "Save — then say the name" },
+      { cmd: "forget [name]",              desc: "Remove a saved person" },
+      { cmd: "who have you seen",          desc: "List all saved people" },
+      { cmd: "show people",                desc: "Open saved people tab" },
+      { cmd: "live feed",                  desc: "Go to live descriptions" },
+      { cmd: "commands / help",            desc: "Show this list" },
+      { cmd: "stop",                       desc: "Stop camera and monitoring" },
     ];
-
     grid.innerHTML = commands.map(c => `
       <div class="command-item">
         <div class="command-phrase">"${c.cmd}"</div>
@@ -498,9 +380,6 @@ const App = {
     `).join("");
   },
 
-  /* ===============================
-     PRIVATE — capture frame as blob
-  =============================== */
   async _captureBlob(quality = 0.9) {
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -510,62 +389,40 @@ const App = {
     return new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
   },
 
-  /* ===============================
-     PRIVATE — shared save logic
-  =============================== */
   async _doSave(name) {
     const statusEl = document.getElementById("saveStatus");
     try {
       if (statusEl) statusEl.textContent = `Saving "${name}"...`;
-
-      // Use pre-captured blob if available, otherwise capture now
       const blob = this._pendingBlob || await this._captureBlob();
       this._pendingBlob = null;
-
       await People.save(name, blob);
-
       if (statusEl) statusEl.textContent = `✅ Saved: ${name}`;
       setTimeout(() => {
         document.getElementById("saveOverlay").style.display = "none";
         document.getElementById("saveNameInput").style.display = "none";
         document.getElementById("saveConfirmBtn").style.display = "none";
       }, 800);
-
     } catch (err) {
       console.error("Save error:", err);
       if (statusEl) statusEl.textContent = "❌ Save failed — try again";
       Speech.speak("Sorry, something went wrong while saving.");
-      setTimeout(() => {
-        document.getElementById("saveOverlay").style.display = "none";
-      }, 1500);
+      setTimeout(() => { document.getElementById("saveOverlay").style.display = "none"; }, 1500);
     } finally {
       setTimeout(() => Speech.listen(), 1200);
     }
   },
 
-  /* ===============================
-     PRIVATE — announce a recognised person
-     Respects greet cooldown from Config
-  =============================== */
   _announceRecognized(name) {
     const cooldown = Config?.PEOPLE?.greetCooldownMs ?? 10000;
     const now = Date.now();
     const last = this._greetCooldowns[name] || 0;
-
-    if (now - last < cooldown) {
-      console.log(`Greet cooldown active for ${name}`);
-      return;
-    }
-
+    if (now - last < cooldown) { console.log(`Greet cooldown active for ${name}`); return; }
     this._greetCooldowns[name] = now;
-
     const person = People.recognize(name);
     if (person && Config?.PEOPLE?.greetOnRecognise !== false) {
       Speech.speak(`Hello, ${name}!`);
       this.showToast(`👋 Hello, ${name}!`);
     }
-
-    // Show on live feed too
     this.addLiveFeedCard(`✅ Recognised: <strong>${name}</strong>`);
     this.switchTab("people");
   }
@@ -573,7 +430,4 @@ const App = {
 
 window.App = App;
 
-/* ===============================
-   START APP
-=============================== */
 window.addEventListener("DOMContentLoaded", () => App.init());
