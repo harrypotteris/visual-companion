@@ -6,7 +6,7 @@ A voice-controlled web app for visually impaired users. It uses the camera to de
 
 ## Features
 
-- **Scene description:** a vision-language model (GPT-4o or Llama-3.2-11B-Vision) describes each camera frame, and the result is spoken aloud.
+- **Scene description:** a vision-language model describes each camera frame, and the result is spoken aloud.
 - **Face recognition:** enroll people by name, then ask "who is this?". Matching uses face-api.js descriptors and Euclidean distance with a 0.6 threshold.
 - **Hands-free voice control:** commands such as "start camera", "who is this" and "stop", using the Web Speech API for recognition and speech output.
 - **Live monitoring:** the camera is scanned automatically every 4 seconds.
